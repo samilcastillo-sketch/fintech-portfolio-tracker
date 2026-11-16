@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fintech Portfolio Analytics & Backtester</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #131b2e;
+      --border: #23304c;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --primary: #38bdf8;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 2rem 1rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header { margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    header h1 { font-size: 2rem; font-weight: 800; }
+    header h1 span { color: var(--primary); }
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem; }
+    .metric-label { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 600; }
+    .metric-value { font-size: 2rem; font-weight: 800; font-family: monospace; }
+    .metric-sub { font-size: 0.85rem; margin-top: 0.25rem; font-weight: 600; }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th { text-align: left; padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    td { padding: 1rem; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-family: monospace; }
+    .symbol-pill { background: #1e293b; color: #fff; padding: 0.25rem 0.6rem; border-radius: 0.5rem; font-weight: 700; font-size: 0.85rem; }
+    .btn { background: #0284c7; color: #fff; border: none; padding: 0.6rem 1.2rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; }
+    .btn:hover { background: #0369a1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>📈 Portfolio <span>Analytics</span> Engine</h1>
+        <p style="color: var(--muted);">Seguimiento de valor neto, cálculo de P&L en tiempo real y métricas de riesgo Sharpe</p>
+      </div>
+    </header>
+
+    <div class="metrics-grid">
+      <div class="card">
+        <div class="metric-label">Valor Total del Portafolio</div>
+        <div id="totalVal" class="metric-value">$0.00</div>
+        <div class="metric-sub" style="color: var(--muted);">Capital bajo gestión</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Rendimiento No Realizado (P&L)</div>
+        <div id="pnlVal" class="metric-value positive">+$0.00</div>
+        <div id="pnlPct" class="metric-sub positive">+0.00%</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Sharpe Ratio</div>
+        <div id="sharpeVal" class="metric-value" style="color: var(--primary);">0.00</div>
+        <div class="metric-sub" style="color: var(--muted);">Rendimiento ajustado al riesgo</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Volatilidad Anualizada</div>
+        <div id="volVal" class="metric-value">0.0%</div>
+        <div class="metric-sub" style="color: var(--muted);">Desviación estándar estimada</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="font-size: 1.2rem; font-weight: 700;">Posiciones y Asignación de Activos</h2>
+      </div>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>Cantidad</th>
+              <th>Precio Compra</th>
+              <th>Precio Mercado</th>
+              <th>Valor Total</th>
+              <th>P&L ($)</th>
+              <th>Retorno (%)</th>
+              <th>Peso (%)</th>
+            </tr>
+          </thead>
+          <tbody id="positionsTable">
+            <tr><td colspan="8" style="text-align: center; color: var(--muted);">Cargando posiciones...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function loadPortfolio() {
+      try {
+        const res = await fetch('/api/v1/portfolio');
+        const data = await res.json();
+        renderData(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderData(data) {
+      document.getElementById('totalVal').textContent = '$' + data.current_value.toLocaleString();
+      
+      const pnlEl = document.getElementById('pnlVal');
+      const pnlPctEl = document.getElementById('pnlPct');
+      const isPositive = data.total_pnl >= 0;
+      
+      pnlEl.textContent = (isPositive ? '+' : '') + '$' + data.total_pnl.toLocaleString();
+      pnlEl.className = 'metric-value ' + (isPositive ? 'positive' : 'negative');
+
+      pnlPctEl.textContent = (isPositive ? '+' : '') + data.total_pnl_pct + '% total';
+      pnlPctEl.className = 'metric-sub ' + (isPositive ? 'positive' : 'negative');
+
+      document.getElementById('sharpeVal').textContent = data.sharpe_ratio;
+      document.getElementById('volVal').textContent = data.annualized_volatility_pct + '%';
+
+      const tbody = document.getElementById('positionsTable');
+      tbody.innerHTML = '';
+
+      data.positions.forEach(p => {
+        const tr = document.createElement('tr');
+        const pnlClass = p.pnl >= 0 ? 'positive' : 'negative';
+        const pnlSign = p.pnl >= 0 ? '+' : '';
+
+        tr.innerHTML = `
+          <td><span class="symbol-pill">${p.symbol}</span></td>
+          <td>${p.quantity}</td>
+          <td>$${p.buy_price.toLocaleString()}</td>
+          <td>$${p.current_price.toLocaleString()}</td>
+          <td><strong>$${p.current_value.toLocaleString()}</strong></td>
+          <td class="${pnlClass}">${pnlSign}$${p.pnl.toLocaleString()}</td>
+          <td class="${pnlClass}">${pnlSign}${p.pnl_pct}%</td>
+          <td><span style="color: var(--primary);">${p.weight_pct}%</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.onload = loadPortfolio;
+  </script>
+</body>
+</html>
